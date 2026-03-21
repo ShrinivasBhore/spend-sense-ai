@@ -6,6 +6,8 @@ import { AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
 import { getDaysInMonth } from 'date-fns';
 import { formatINR } from '../utils/currency';
 
+import { SpendingScore } from './SpendingScore';
+
 const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#64748b'];
 
 export const Dashboard: React.FC = () => {
@@ -102,6 +104,7 @@ export const Dashboard: React.FC = () => {
             of {formatINR(totalBudget)} total budget
           </p>
         </div>
+        <SpendingScore />
       </div>
 
       {/* Progress Bars */}
