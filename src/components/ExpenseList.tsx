@@ -4,6 +4,7 @@ import { ExpenseForm } from './ExpenseForm';
 import { Trash2, Edit, Calendar, Tag, DollarSign, Search, CreditCard } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Category, CATEGORIES } from '../types';
+import { formatINR } from '../utils/currency';
 
 export const ExpenseList: React.FC = () => {
   const { currentMonthExpenses, deleteExpense } = useExpenses();
@@ -111,7 +112,7 @@ export const ExpenseList: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <span className="font-semibold text-slate-800 text-lg">${expense.amount.toFixed(2)}</span>
+                    <span className="font-semibold text-slate-800 text-lg">{formatINR(expense.amount)}</span>
                     <div className="flex items-center gap-2">
                       <button onClick={() => setEditingId(expense.id)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit className="w-4 h-4" /></button>
                       <button onClick={() => deleteExpense(expense.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>

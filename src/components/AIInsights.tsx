@@ -25,7 +25,7 @@ export const AIInsights: React.FC = () => {
     setLoadingInsights(true);
     try {
       const prompt = `
-        Analyze the following expense data for ${currentMonth} and budgets.
+        Analyze the following expense data for ${currentMonth} and budgets. All currency values are in Indian Rupees (INR, ₹).
         Provide a brief, encouraging spending summary and 2-3 actionable savings tips.
         Format the response in Markdown. Keep it concise (under 150 words).
         
@@ -58,7 +58,7 @@ export const AIInsights: React.FC = () => {
 
     try {
       const prompt = `
-        You are a helpful financial assistant. Answer the user's question based on their expense data for ${currentMonth}.
+        You are a helpful financial assistant. Answer the user's question based on their expense data for ${currentMonth}. All currency values are in Indian Rupees (INR, ₹).
         Keep answers concise and helpful. Format the response in Markdown.
         
         Expenses: ${JSON.stringify(currentMonthExpenses)}

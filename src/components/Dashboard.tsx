@@ -4,6 +4,7 @@ import { CATEGORIES } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
 import { getDaysInMonth } from 'date-fns';
+import { formatINR } from '../utils/currency';
 
 const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#64748b'];
 
@@ -68,7 +69,7 @@ export const Dashboard: React.FC = () => {
               <div key={bp.category} className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
                 <p className="text-sm font-medium">
-                  You have exceeded your <span className="font-bold">{bp.category}</span> budget by ${(bp.spent - bp.budget).toFixed(2)}.
+                  You have exceeded your <span className="font-bold">{bp.category}</span> budget by {formatINR(bp.spent - bp.budget)}.
                 </p>
               </div>
             );
@@ -78,7 +79,7 @@ export const Dashboard: React.FC = () => {
               <div key={bp.category} className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
                 <p className="text-sm font-medium">
-                  You are nearing your <span className="font-bold">{bp.category}</span> budget limit. (${(bp.budget - bp.spent).toFixed(2)} remaining)
+                  You are nearing your <span className="font-bold">{bp.category}</span> budget limit. ({formatINR(bp.budget - bp.spent)} remaining)
                 </p>
               </div>
             );
@@ -96,9 +97,9 @@ export const Dashboard: React.FC = () => {
               <TrendingUp className="w-5 h-5 text-indigo-500" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-slate-800">${totalSpent.toFixed(2)}</p>
+          <p className="text-3xl font-bold text-slate-800">{formatINR(totalSpent)}</p>
           <p className="text-sm text-slate-500 mt-2">
-            of ${totalBudget.toFixed(2)} total budget
+            of {formatINR(totalBudget)} total budget
           </p>
         </div>
       </div>
@@ -115,7 +116,7 @@ export const Dashboard: React.FC = () => {
                 <div className="flex justify-between text-sm mb-2">
                   <span className="font-medium text-slate-700">{bp.category}</span>
                   <span className="text-slate-500">
-                    ${bp.spent.toFixed(2)} / ${bp.budget.toFixed(2)}
+                    {formatINR(bp.spent)} / {formatINR(bp.budget)}
                   </span>
                 </div>
                 <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -153,7 +154,7 @@ export const Dashboard: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                  <Tooltip formatter={(value: number) => formatINR(value)} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -179,10 +180,10 @@ export const Dashboard: React.FC = () => {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
-                    tickFormatter={(val) => `$${val}`}
+                    tickFormatter={(val) => `₹${val}`}
                   />
                   <Tooltip 
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Spent']}
+                    formatter={(value: number) => [formatINR(value), 'Spent']}
                     labelFormatter={(label) => `Day ${label}`}
                     cursor={{ fill: '#f1f5f9' }}
                   />
