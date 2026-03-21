@@ -24,14 +24,53 @@ export const AIInsights: React.FC = () => {
 
     setLoadingInsights(true);
     try {
-      const prompt = `
-        Analyze the following expense data for ${currentMonth} and budgets. All currency values are in Indian Rupees (INR, ₹).
-        Provide a brief, encouraging spending summary and 2-3 actionable savings tips.
-        Format the response in Markdown. Keep it concise (under 150 words).
-        
-        Expenses: ${JSON.stringify(currentMonthExpenses)}
-        Budgets: ${JSON.stringify(budgets)}
-      `;
+      const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
+      const transactionCount = currentMonthExpenses.length;
+      
+      const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+        acc[e.category] = (acc[e.category] || 0) + e.amount;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const categoryBreakdown = budgets.map(b => {
+        const spent = categoryTotals[b.category] || 0;
+        return `${b.category}: Spent ₹${spent} out of ₹${b.limit} budget`;
+      }).join('\n');
+
+      const recentTransactions = [...currentMonthExpenses]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5)
+        .map(e => `${e.date} - ${e.description || e.category}: ₹${e.amount}`)
+        .join('\n');
+
+      const prompt = `You are a personal finance assistant for an Indian user.
+
+Here is their expense data for this month:
+
+Month: ${currentMonth}
+Total Spent: ₹${totalSpent}
+Total Budget: ₹${totalBudget}
+Number of transactions: ${transactionCount}
+
+Category-wise spending:
+${categoryBreakdown}
+
+Recent transactions:
+${recentTransactions}
+
+Your task:
+1. Write a 2-3 sentence overview of their spending pattern this month
+2. Identify the category where they overspent or are at risk
+3. Tell them whether they are on track to finish the month within budget
+4. Give exactly 3 saving tips that are specific to their actual data — not generic advice
+
+Rules:
+- Use ₹ symbol for all amounts
+- Be friendly, honest, and direct
+- Do not use bullet points or markdown
+- Keep total response under 220 words
+- Sound like a real human financial advisor, not a chatbot`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -108,8 +147,8 @@ export const AIInsights: React.FC = () => {
             <p className="text-indigo-600/70 italic">Click the button above to generate personalized insights based on your spending habits.</p>
           )}
           {insights && (
-            <div className="bg-white/60 p-4 rounded-xl border border-white/40 markdown-body">
-              <ReactMarkdown>{insights}</ReactMarkdown>
+            <div className="bg-white/60 p-4 rounded-xl border border-white/40 whitespace-pre-wrap text-slate-700 leading-relaxed">
+              {insights}
             </div>
           )}
         </div>
