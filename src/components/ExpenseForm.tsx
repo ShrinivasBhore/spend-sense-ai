@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
 import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Expense } from '../types';
-import { PlusCircle, Edit2 } from 'lucide-react';
+import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { GoogleGenAI, Type } from '@google/genai';
 
 interface ExpenseFormProps {
   expenseToEdit?: Expense;
@@ -20,6 +21,59 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
   const [date, setDate] = useState(expenseToEdit?.date || defaultDate);
   const [description, setDescription] = useState(expenseToEdit?.description || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(expenseToEdit?.paymentMethod || 'Credit Card');
+
+  const [smartInput, setSmartInput] = useState('');
+  const [isParsing, setIsParsing] = useState(false);
+
+  const handleSmartParse = async () => {
+    if (!smartInput.trim()) return;
+    setIsParsing(true);
+    
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Parse the following expense description into structured data.
+      
+Description: "${smartInput}"
+
+Current Date (if they say today/yesterday): ${new Date().toISOString().split('T')[0]}
+
+Categories available: ${CATEGORIES.join(', ')}
+Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              amount: { type: Type.NUMBER, description: "The amount spent" },
+              category: { type: Type.STRING, description: "The best matching category from the available list" },
+              description: { type: Type.STRING, description: "A short description of the expense" },
+              date: { type: Type.STRING, description: "The date of the expense in YYYY-MM-DD format" },
+              paymentMethod: { type: Type.STRING, description: "The best matching payment method from the available list, default to 'Credit Card' if unknown" }
+            },
+            required: ["amount", "category", "description", "date", "paymentMethod"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || '{}');
+      
+      if (result.amount) setAmount(result.amount.toString());
+      if (result.category && CATEGORIES.includes(result.category as Category)) setCategory(result.category as Category);
+      if (result.description) setDescription(result.description);
+      if (result.date) setDate(result.date);
+      if (result.paymentMethod && PAYMENT_METHODS.includes(result.paymentMethod as PaymentMethod)) setPaymentMethod(result.paymentMethod as PaymentMethod);
+      
+      setSmartInput('');
+    } catch (error) {
+      console.error("Failed to parse expense:", error);
+    } finally {
+      setIsParsing(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +107,43 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
         {expenseToEdit ? <Edit2 className="w-5 h-5 text-indigo-500" /> : <PlusCircle className="w-5 h-5 text-emerald-500" />}
         {expenseToEdit ? 'Edit Expense' : 'Add Expense'}
       </h3>
+
+      {!expenseToEdit && (
+        <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+          <label className="block text-sm font-medium text-indigo-900 mb-2 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-500" />
+            Smart Add
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={smartInput}
+              onChange={e => setSmartInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSmartParse();
+                }
+              }}
+              placeholder="e.g., 'Spent 500 on groceries yesterday'"
+              className="flex-1 px-4 py-2 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-sm"
+              disabled={isParsing}
+            />
+            <button
+              type="button"
+              onClick={handleSmartParse}
+              disabled={isParsing || !smartInput.trim()}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center min-w-[40px]"
+            >
+              {isParsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-indigo-600/70 mt-2">
+            AI will automatically fill the form below.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">Amount (₹)</label>
