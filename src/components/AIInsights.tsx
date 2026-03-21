@@ -96,15 +96,47 @@ Rules:
     setLoadingChat(true);
 
     try {
-      const prompt = `
-        You are a helpful financial assistant. Answer the user's question based on their expense data for ${currentMonth}. All currency values are in Indian Rupees (INR, ₹).
-        Keep answers concise and helpful. Format the response in Markdown.
-        
-        Expenses: ${JSON.stringify(currentMonthExpenses)}
-        Budgets: ${JSON.stringify(budgets)}
-        
-        User Question: ${userMsg}
-      `;
+      const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
+      
+      const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+        acc[e.category] = (acc[e.category] || 0) + e.amount;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const categoryBreakdown = budgets.map(b => {
+        const spent = categoryTotals[b.category] || 0;
+        return `${b.category}: Spent ₹${spent} out of ₹${b.limit} budget`;
+      }).join('\n');
+
+      const recentTransactions = [...currentMonthExpenses]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5)
+        .map(e => `${e.date} - ${e.description || e.category}: ₹${e.amount}`)
+        .join('\n');
+
+      const prompt = `You are a personal finance assistant. The user has shared their expense data with you.
+
+Their data:
+Month: ${currentMonth}
+Total spent: ₹${totalSpent}
+Budget: ₹${totalBudget}
+Category breakdown:
+${categoryBreakdown}
+
+Recent transactions:
+${recentTransactions}
+
+The user is asking: "${userMsg}"
+
+Answer their question using their actual data. Be specific — mention real numbers from their data.
+
+Rules:
+- Keep answer under 120 words
+- Use ₹ for amounts
+- Sound natural, not robotic
+- If the answer is not in their data, say so honestly
+- Do not use markdown or bullet points`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -175,8 +207,8 @@ Rules:
                     ? 'bg-indigo-600 text-white rounded-br-none' 
                     : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                 }`}>
-                  <div className={msg.role === 'user' ? '' : 'markdown-body'}>
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <div className="whitespace-pre-wrap leading-relaxed">
+                    {msg.content}
                   </div>
                 </div>
               </div>
