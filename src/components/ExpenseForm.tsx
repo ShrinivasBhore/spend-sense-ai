@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
-import { Category, CATEGORIES, Expense } from '../types';
+import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Expense } from '../types';
 import { PlusCircle, Edit2 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -9,11 +9,17 @@ interface ExpenseFormProps {
 }
 
 export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose }) => {
-  const { addExpense, editExpense } = useExpenses();
+  const { addExpense, editExpense, currentMonth } = useExpenses();
   const [amount, setAmount] = useState(expenseToEdit?.amount.toString() || '');
   const [category, setCategory] = useState<Category>(expenseToEdit?.category || 'Food');
-  const [date, setDate] = useState(expenseToEdit?.date || new Date().toISOString().split('T')[0]);
+  
+  const defaultDate = new Date().toISOString().slice(0, 7) === currentMonth 
+    ? new Date().toISOString().split('T')[0] 
+    : `${currentMonth}-01`;
+    
+  const [date, setDate] = useState(expenseToEdit?.date || defaultDate);
   const [description, setDescription] = useState(expenseToEdit?.description || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(expenseToEdit?.paymentMethod || 'Credit Card');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +29,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
       amount: Number(amount),
       category,
       date,
-      description
+      description,
+      paymentMethod
     };
 
     if (expenseToEdit) {
@@ -59,17 +66,31 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
             placeholder="0.00"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value as Category)}
-            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white"
-          >
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value as Category)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white"
+            >
+              {CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Payment Method</label>
+            <select
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white"
+            >
+              {PAYMENT_METHODS.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">Date</label>

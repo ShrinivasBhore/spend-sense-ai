@@ -3,19 +3,12 @@ import { useExpenses } from '../context/ExpenseContext';
 import { CATEGORIES } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { getDaysInMonth } from 'date-fns';
 
 const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#64748b'];
 
 export const Dashboard: React.FC = () => {
-  const { expenses, budgets } = useExpenses();
-
-  const currentMonthExpenses = useMemo(() => {
-    const now = new Date();
-    const start = startOfMonth(now);
-    const end = endOfMonth(now);
-    return expenses.filter(e => isWithinInterval(parseISO(e.date), { start, end }));
-  }, [expenses]);
+  const { currentMonthExpenses, budgets, currentMonth } = useExpenses();
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -26,12 +19,32 @@ export const Dashboard: React.FC = () => {
     return totals;
   }, [currentMonthExpenses]);
 
-  const chartData = useMemo(() => {
+  const pieData = useMemo(() => {
     return CATEGORIES.map(category => ({
       name: category,
       value: categoryTotals[category]
     })).filter(d => d.value > 0);
   }, [categoryTotals]);
+
+  const dailyData = useMemo(() => {
+    if (!currentMonth) return [];
+    const [year, month] = currentMonth.split('-').map(Number);
+    const daysInMonth = getDaysInMonth(new Date(year, month - 1));
+    const days = Array.from({ length: daysInMonth }, (_, i) => ({
+      day: i + 1,
+      date: `${currentMonth}-${String(i + 1).padStart(2, '0')}`,
+      amount: 0
+    }));
+
+    currentMonthExpenses.forEach(e => {
+      const day = parseInt(e.date.split('-')[2], 10);
+      if (days[day - 1]) {
+        days[day - 1].amount += e.amount;
+      }
+    });
+
+    return days;
+  }, [currentMonthExpenses, currentMonth]);
 
   const budgetProgress = useMemo(() => {
     return CATEGORIES.map(category => {
@@ -120,32 +133,66 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Charts */}
-      {chartData.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold mb-6 text-slate-800">Spending by Category</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {pieData.length > 0 && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <h3 className="text-lg font-semibold mb-6 text-slate-800">Spending by Category</h3>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {dailyData.some(d => d.amount > 0) && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <h3 className="text-lg font-semibold mb-6 text-slate-800">Daily Spending</h3>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="day" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => val % 5 === 0 || val === 1 ? val : ''}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => `$${val}`}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Spent']}
+                    labelFormatter={(label) => `Day ${label}`}
+                    cursor={{ fill: '#f1f5f9' }}
+                  />
+                  <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { Expense, Budget, Category, CATEGORIES } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ExpenseContextType {
   expenses: Expense[];
+  currentMonthExpenses: Expense[];
   budgets: Budget[];
+  currentMonth: string;
+  setCurrentMonth: (month: string) => void;
   addExpense: (expense: Omit<Expense, 'id'>) => void;
   editExpense: (id: string, expense: Omit<Expense, 'id'>) => void;
   deleteExpense: (id: string) => void;
   setBudget: (category: Category, limit: number) => void;
+  importExpenses: (newExpenses: Expense[]) => void;
 }
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
@@ -24,6 +28,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : CATEGORIES.map(c => ({ category: c, limit: 0 }));
   });
 
+  const [currentMonth, setCurrentMonth] = useState(() => new Date().toISOString().slice(0, 7));
+
   useEffect(() => {
     localStorage.setItem('expenses', JSON.stringify(expenses));
   }, [expenses]);
@@ -31,6 +37,10 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     localStorage.setItem('budgets', JSON.stringify(budgets));
   }, [budgets]);
+
+  const currentMonthExpenses = useMemo(() => {
+    return expenses.filter(e => e.date.startsWith(currentMonth));
+  }, [expenses, currentMonth]);
 
   const addExpense = (expense: Omit<Expense, 'id'>) => {
     setExpenses(prev => [...prev, { ...expense, id: uuidv4() }]);
@@ -54,8 +64,19 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
+  const importExpenses = (newExpenses: Expense[]) => {
+    setExpenses(prev => {
+      const existingIds = new Set(prev.map(e => e.id));
+      const toAdd = newExpenses.filter(e => !existingIds.has(e.id));
+      return [...prev, ...toAdd];
+    });
+  };
+
   return (
-    <ExpenseContext.Provider value={{ expenses, budgets, addExpense, editExpense, deleteExpense, setBudget }}>
+    <ExpenseContext.Provider value={{
+      expenses, currentMonthExpenses, budgets, currentMonth, setCurrentMonth,
+      addExpense, editExpense, deleteExpense, setBudget, importExpenses
+    }}>
       {children}
     </ExpenseContext.Provider>
   );
