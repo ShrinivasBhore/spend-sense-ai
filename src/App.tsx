@@ -4,6 +4,7 @@ import { ExpenseForm } from './components/ExpenseForm';
 import { BudgetForm } from './components/BudgetForm';
 import { ExpenseList } from './components/ExpenseList';
 import { Dashboard } from './components/Dashboard';
+import { BudgetAlerts } from './components/BudgetAlerts';
 import { AIInsights } from './components/AIInsights';
 import { DataActions } from './components/DataActions';
 import { MonthSelector } from './components/MonthSelector';
@@ -37,6 +38,7 @@ export default function App() {
             </div>
             
             <div className="lg:col-span-8 space-y-6">
+              <BudgetAlerts />
               <Dashboard />
               <AIInsights />
               <ExpenseList />
