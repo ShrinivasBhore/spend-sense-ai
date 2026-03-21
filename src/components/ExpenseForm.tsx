@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
 import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Expense } from '../types';
-import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight, Camera } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 
 interface ExpenseFormProps {
@@ -24,6 +24,15 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
 
   const [smartInput, setSmartInput] = useState('');
   const [isParsing, setIsParsing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const applyParsedResult = (result: any) => {
+    if (result.amount) setAmount(result.amount.toString());
+    if (result.category && CATEGORIES.includes(result.category as Category)) setCategory(result.category as Category);
+    if (result.description) setDescription(result.description);
+    if (result.date) setDate(result.date);
+    if (result.paymentMethod && PAYMENT_METHODS.includes(result.paymentMethod as PaymentMethod)) setPaymentMethod(result.paymentMethod as PaymentMethod);
+  };
 
   const handleSmartParse = async () => {
     if (!smartInput.trim()) return;
@@ -60,18 +69,70 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
       });
 
       const result = JSON.parse(response.text || '{}');
-      
-      if (result.amount) setAmount(result.amount.toString());
-      if (result.category && CATEGORIES.includes(result.category as Category)) setCategory(result.category as Category);
-      if (result.description) setDescription(result.description);
-      if (result.date) setDate(result.date);
-      if (result.paymentMethod && PAYMENT_METHODS.includes(result.paymentMethod as PaymentMethod)) setPaymentMethod(result.paymentMethod as PaymentMethod);
-      
+      applyParsedResult(result);
       setSmartInput('');
     } catch (error) {
       console.error("Failed to parse expense:", error);
     } finally {
       setIsParsing(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+
+      const mimeType = file.type;
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Analyze this receipt and extract the expense details into structured data.
+      
+      Current Date (if relative): ${new Date().toISOString().split('T')[0]}
+      
+      Categories available: ${CATEGORIES.join(', ')}
+      Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: prompt }
+          ]
+        },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              amount: { type: Type.NUMBER, description: "The total amount spent" },
+              category: { type: Type.STRING, description: "The best matching category from the available list" },
+              description: { type: Type.STRING, description: "A short description of the expense (e.g., store name or items)" },
+              date: { type: Type.STRING, description: "The date of the expense in YYYY-MM-DD format" },
+              paymentMethod: { type: Type.STRING, description: "The best matching payment method from the available list, default to 'Credit Card' if unknown" }
+            },
+            required: ["amount", "category", "description", "date", "paymentMethod"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || '{}');
+      applyParsedResult(result);
+    } catch (error) {
+      console.error("Failed to parse receipt:", error);
+    } finally {
+      setIsParsing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -112,7 +173,7 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
         <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
           <label className="block text-sm font-medium text-indigo-900 mb-2 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-500" />
-            Smart Add
+            Smart Add & Scan
           </label>
           <div className="flex gap-2">
             <input
@@ -131,6 +192,22 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
             />
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isParsing}
+              className="bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 p-2 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center min-w-[40px]"
+              title="Upload Receipt"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={handleImageUpload} 
+            />
+            <button
+              type="button"
               onClick={handleSmartParse}
               disabled={isParsing || !smartInput.trim()}
               className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center min-w-[40px]"
@@ -139,7 +216,7 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
             </button>
           </div>
           <p className="text-xs text-indigo-600/70 mt-2">
-            AI will automatically fill the form below.
+            Type a sentence or upload a receipt to automatically fill the form.
           </p>
         </div>
       )}
