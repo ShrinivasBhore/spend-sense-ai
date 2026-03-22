@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { Trophy, TrendingUp, AlertCircle } from 'lucide-react';
 
 export const SpendingScore: React.FC = () => {
-  const { currentMonthExpenses, budgets } = useExpenses();
+  const { currentMonthTransactions, budgets } = useTransactions();
 
   const { score, grade, message, textClass, bgClass, borderClass } = useMemo(() => {
+    const expenses = currentMonthTransactions.filter(t => t.type === 'expense');
     const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
-    const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+    const categoryTotals = expenses.reduce((acc, e) => {
       acc[e.category] = (acc[e.category] || 0) + e.amount;
       return acc;
     }, {} as Record<string, number>);
@@ -40,7 +41,7 @@ export const SpendingScore: React.FC = () => {
       }
     });
 
-    const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
     const utilization = totalSpent / totalBudget;
 
     if (utilization > 1) {
@@ -94,7 +95,7 @@ export const SpendingScore: React.FC = () => {
     }
 
     return { score: currentScore, grade, message, textClass, bgClass, borderClass };
-  }, [currentMonthExpenses, budgets]);
+  }, [currentMonthTransactions, budgets]);
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">

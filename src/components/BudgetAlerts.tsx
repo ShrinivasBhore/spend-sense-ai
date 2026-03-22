@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { AlertTriangle, AlertCircle, BellRing, CheckCircle2 } from 'lucide-react';
 
 export const BudgetAlerts: React.FC = () => {
-  const { currentMonthExpenses, budgets } = useExpenses();
+  const { currentMonthTransactions, budgets } = useTransactions();
 
   const alerts = useMemo(() => {
-    const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+    const expenses = currentMonthTransactions.filter(t => t.type === 'expense');
+    const categoryTotals = expenses.reduce((acc, e) => {
       acc[e.category] = (acc[e.category] || 0) + e.amount;
       return acc;
     }, {} as Record<string, number>);
@@ -36,7 +37,7 @@ export const BudgetAlerts: React.FC = () => {
     });
 
     return newAlerts.sort((a, b) => b.percentage - a.percentage);
-  }, [currentMonthExpenses, budgets]);
+  }, [currentMonthTransactions, budgets]);
 
   const hasBudgets = budgets.some(b => b.limit > 0);
 

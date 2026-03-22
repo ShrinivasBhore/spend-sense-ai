@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { CATEGORIES } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { AlertTriangle, AlertCircle, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, AlertCircle, TrendingUp, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { getDaysInMonth } from 'date-fns';
 import { formatINR } from '../utils/currency';
 
@@ -25,16 +25,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export const Dashboard: React.FC = () => {
-  const { currentMonthExpenses, budgets, currentMonth } = useExpenses();
+  const { currentMonthTransactions, budgets, currentMonth } = useTransactions();
+
+  const expenses = useMemo(() => currentMonthTransactions.filter(t => t.type === 'expense'), [currentMonthTransactions]);
+  const incomes = useMemo(() => currentMonthTransactions.filter(t => t.type === 'income'), [currentMonthTransactions]);
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     CATEGORIES.forEach(c => totals[c] = 0);
-    currentMonthExpenses.forEach(e => {
+    expenses.forEach(e => {
       totals[e.category] += e.amount;
     });
     return totals;
-  }, [currentMonthExpenses]);
+  }, [expenses]);
 
   const pieData = useMemo(() => {
     return CATEGORIES.map(category => ({
@@ -50,18 +53,20 @@ export const Dashboard: React.FC = () => {
     const days = Array.from({ length: daysInMonth }, (_, i) => ({
       day: i + 1,
       date: `${currentMonth}-${String(i + 1).padStart(2, '0')}`,
-      amount: 0
+      expense: 0,
+      income: 0
     }));
 
-    currentMonthExpenses.forEach(e => {
-      const day = parseInt(e.date.split('-')[2], 10);
+    currentMonthTransactions.forEach(t => {
+      const day = parseInt(t.date.split('-')[2], 10);
       if (days[day - 1]) {
-        days[day - 1].amount += e.amount;
+        if (t.type === 'expense') days[day - 1].expense += t.amount;
+        if (t.type === 'income') days[day - 1].income += t.amount;
       }
     });
 
     return days;
-  }, [currentMonthExpenses, currentMonth]);
+  }, [currentMonthTransactions, currentMonth]);
 
   const budgetProgress = useMemo(() => {
     return CATEGORIES.map(category => {
@@ -73,7 +78,9 @@ export const Dashboard: React.FC = () => {
       .sort((a, b) => b.percentage - a.percentage);
   }, [budgets, categoryTotals]);
 
-  const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0);
+  const netBalance = totalIncome - totalSpent;
   const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
   const spentPercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
@@ -109,16 +116,50 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-5">
             <Wallet className="w-32 h-32" />
           </div>
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-slate-500 font-medium">Total Spent This Month</h3>
-              <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-slate-500 font-medium">Net Balance</h3>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${netBalance >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                <TrendingUp className={`w-5 h-5 ${netBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className={`text-4xl font-bold ${netBalance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>{formatINR(netBalance)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-6 opacity-5">
+            <ArrowUpCircle className="w-32 h-32" />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-slate-500 font-medium">Total Income</h3>
+              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+                <ArrowUpCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-4xl font-bold text-slate-800">{formatINR(totalIncome)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-6 opacity-5">
+            <ArrowDownCircle className="w-32 h-32" />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-slate-500 font-medium">Total Spent</h3>
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+                <ArrowDownCircle className="w-5 h-5 text-rose-500" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
@@ -145,11 +186,11 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
-        <SpendingScore />
       </div>
 
-      {/* Category Analysis Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <SpendingScore />
+        
         {/* Progress Bars */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow flex flex-col">
           <h3 className="text-lg font-semibold mb-6 text-slate-800">Budget Usage</h3>
@@ -180,7 +221,10 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
 
+      {/* Category Analysis Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Pie Chart */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
           <h3 className="text-lg font-semibold mb-2 text-slate-800">Spending Breakdown</h3>
@@ -219,44 +263,57 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Daily Spending Chart */}
-      {dailyData.some(d => d.amount > 0) && (
+        {/* Daily Spending Chart */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-          <h3 className="text-lg font-semibold mb-6 text-slate-800">Daily Spending Trends</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="day" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                  tickFormatter={(val) => val % 5 === 0 || val === 1 ? val : ''}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                  tickFormatter={(val) => `₹${val}`}
-                  dx={-10}
-                />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
-                <Bar 
-                  dataKey="amount" 
-                  fill="#6366f1" 
-                  radius={[4, 4, 0, 0]} 
-                  maxBarSize={40}
-                  animationDuration={1500}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <h3 className="text-lg font-semibold mb-6 text-slate-800">Daily Trends</h3>
+          {dailyData.some(d => d.expense > 0 || d.income > 0) ? (
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="day" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    tickFormatter={(val) => val % 5 === 0 || val === 1 ? val : ''}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    tickFormatter={(val) => `₹${val}`}
+                    dx={-10}
+                  />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                  <Bar 
+                    dataKey="income" 
+                    fill="#10b981" 
+                    radius={[4, 4, 0, 0]} 
+                    maxBarSize={20}
+                    animationDuration={1500}
+                    name="Income"
+                  />
+                  <Bar 
+                    dataKey="expense" 
+                    fill="#ef4444" 
+                    radius={[4, 4, 0, 0]} 
+                    maxBarSize={20}
+                    animationDuration={1500}
+                    name="Expense"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center">
+              <p className="text-slate-400 text-sm">No transactions recorded this month.</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -1,10 +1,10 @@
 import React from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 
 export const MonthSelector: React.FC = () => {
-  const { currentMonth, setCurrentMonth } = useExpenses();
+  const { currentMonth, setCurrentMonth } = useTransactions();
 
   const handlePrev = () => {
     const date = parseISO(`${currentMonth}-01`);

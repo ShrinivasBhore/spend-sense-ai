@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { GoogleGenAI } from '@google/genai';
 import { Sparkles, Loader2, MessageSquare, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export const AIInsights: React.FC = () => {
-  const { currentMonthExpenses, budgets, currentMonth } = useExpenses();
+  const { currentMonthTransactions, budgets, currentMonth } = useTransactions();
   const [insights, setInsights] = useState<string | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   
@@ -17,18 +17,19 @@ export const AIInsights: React.FC = () => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const generateInsights = async () => {
-    if (currentMonthExpenses.length === 0) {
-      setInsights("You haven't logged any expenses this month. Start tracking to get personalized insights!");
+    if (currentMonthTransactions.length === 0) {
+      setInsights("You haven't logged any transactions this month. Start tracking to get personalized insights!");
       return;
     }
 
     setLoadingInsights(true);
     try {
-      const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const expenses = currentMonthTransactions.filter(t => t.type === 'expense');
+      const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
       const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
-      const transactionCount = currentMonthExpenses.length;
+      const transactionCount = currentMonthTransactions.length;
       
-      const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+      const categoryTotals = expenses.reduce((acc, e) => {
         acc[e.category] = (acc[e.category] || 0) + e.amount;
         return acc;
       }, {} as Record<string, number>);
@@ -38,18 +39,18 @@ export const AIInsights: React.FC = () => {
         return `${b.category}: Spent ₹${spent} out of ₹${b.limit} budget`;
       }).join('\n');
 
-      const recentTransactions = [...currentMonthExpenses]
+      const recentTransactions = [...currentMonthTransactions]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5)
-        .map(e => `${e.date} - ${e.description || e.category}: ₹${e.amount}`)
+        .map(e => `${e.date} - [${e.type.toUpperCase()}] ${e.description || e.category}: ₹${e.amount}`)
         .join('\n');
 
       const prompt = `You are a personal finance assistant for an Indian user.
 
-Here is their expense data for this month:
+Here is their transaction data for this month:
 
 Month: ${currentMonth}
-Total Spent: ₹${totalSpent}
+Total Spent (Expenses): ₹${totalSpent}
 Total Budget: ₹${totalBudget}
 Number of transactions: ${transactionCount}
 
@@ -96,10 +97,11 @@ Rules:
     setLoadingChat(true);
 
     try {
-      const totalSpent = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const expenses = currentMonthTransactions.filter(t => t.type === 'expense');
+      const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
       const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
       
-      const categoryTotals = currentMonthExpenses.reduce((acc, e) => {
+      const categoryTotals = expenses.reduce((acc, e) => {
         acc[e.category] = (acc[e.category] || 0) + e.amount;
         return acc;
       }, {} as Record<string, number>);
@@ -109,17 +111,17 @@ Rules:
         return `${b.category}: Spent ₹${spent} out of ₹${b.limit} budget`;
       }).join('\n');
 
-      const recentTransactions = [...currentMonthExpenses]
+      const recentTransactions = [...currentMonthTransactions]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5)
-        .map(e => `${e.date} - ${e.description || e.category}: ₹${e.amount}`)
+        .map(e => `${e.date} - [${e.type.toUpperCase()}] ${e.description || e.category}: ₹${e.amount}`)
         .join('\n');
 
-      const prompt = `You are a personal finance assistant. The user has shared their expense data with you.
+      const prompt = `You are a personal finance assistant. The user has shared their transaction data with you.
 
 Their data:
 Month: ${currentMonth}
-Total spent: ₹${totalSpent}
+Total spent (Expenses): ₹${totalSpent}
 Budget: ₹${totalBudget}
 Category breakdown:
 ${categoryBreakdown}

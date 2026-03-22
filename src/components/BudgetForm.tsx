@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { CATEGORIES } from '../types';
 import { Target } from 'lucide-react';
 
 export const BudgetForm: React.FC = () => {
-  const { budgets, setBudget } = useExpenses();
+  const { budgets, setBudget } = useTransactions();
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">

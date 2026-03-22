@@ -1,25 +1,26 @@
 import React, { useRef } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
+import { useTransactions } from '../context/TransactionContext';
 import { Download, Upload } from 'lucide-react';
-import { Expense, PaymentMethod, Category } from '../types';
+import { Transaction, PaymentMethod, Category, TransactionType } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export const DataActions: React.FC = () => {
-  const { expenses, importExpenses } = useExpenses();
+  const { transactions, importTransactions } = useTransactions();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
-    const headers = ['id', 'amount', 'category', 'date', 'description', 'paymentMethod'];
+    const headers = ['id', 'type', 'amount', 'category', 'date', 'description', 'paymentMethod'];
     const csvRows = [headers.join(',')];
 
-    expenses.forEach(e => {
+    transactions.forEach(t => {
       const row = [
-        e.id,
-        e.amount,
-        e.category,
-        e.date,
-        `"${e.description.replace(/"/g, '""')}"`,
-        e.paymentMethod
+        t.id,
+        t.type,
+        t.amount,
+        t.category,
+        t.date,
+        `"${t.description.replace(/"/g, '""')}"`,
+        t.paymentMethod
       ];
       csvRows.push(row.join(','));
     });
@@ -28,7 +29,7 @@ export const DataActions: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `expenses_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `transactions_export_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -47,28 +48,43 @@ export const DataActions: React.FC = () => {
       const lines = text.split('\n').filter(line => line.trim() !== '');
       if (lines.length <= 1) return; // Only headers or empty
 
-      const newExpenses: Expense[] = [];
+      const newTransactions: Transaction[] = [];
       
       // Basic CSV parsing
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         // Regex to split by comma, ignoring commas inside quotes
         const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        if (values.length >= 6) {
-          newExpenses.push({
+        
+        // Handle both old format (6 cols) and new format (7 cols)
+        if (values.length === 6) {
+          // Old format: id, amount, category, date, description, paymentMethod
+          newTransactions.push({
             id: values[0] || uuidv4(),
+            type: 'expense',
             amount: Number(values[1]),
             category: values[2] as Category,
             date: values[3],
             description: values[4].replace(/^"|"$/g, '').replace(/""/g, '"'),
             paymentMethod: values[5] as PaymentMethod
           });
+        } else if (values.length >= 7) {
+          // New format: id, type, amount, category, date, description, paymentMethod
+          newTransactions.push({
+            id: values[0] || uuidv4(),
+            type: (values[1] as TransactionType) || 'expense',
+            amount: Number(values[2]),
+            category: values[3] as Category,
+            date: values[4],
+            description: values[5].replace(/^"|"$/g, '').replace(/""/g, '"'),
+            paymentMethod: values[6] as PaymentMethod
+          });
         }
       }
 
-      if (newExpenses.length > 0) {
-        importExpenses(newExpenses);
-        alert(`Successfully imported ${newExpenses.length} expenses.`);
+      if (newTransactions.length > 0) {
+        importTransactions(newTransactions);
+        alert(`Successfully imported ${newTransactions.length} transactions.`);
       }
     };
     reader.readAsText(file);

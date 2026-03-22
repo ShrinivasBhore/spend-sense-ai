@@ -1,32 +1,34 @@
 import React, { useState, useRef } from 'react';
-import { useExpenses } from '../context/ExpenseContext';
-import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Expense } from '../types';
-import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight, Camera } from 'lucide-react';
+import { useTransactions } from '../context/TransactionContext';
+import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Transaction, TransactionType } from '../types';
+import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight, Camera, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 
-interface ExpenseFormProps {
-  expenseToEdit?: Expense;
+interface TransactionFormProps {
+  transactionToEdit?: Transaction;
   onClose?: () => void;
 }
 
-export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose }) => {
-  const { addExpense, editExpense, currentMonth } = useExpenses();
-  const [amount, setAmount] = useState(expenseToEdit?.amount.toString() || '');
-  const [category, setCategory] = useState<Category>(expenseToEdit?.category || 'Food');
+export const TransactionForm: React.FC<TransactionFormProps> = ({ transactionToEdit, onClose }) => {
+  const { addTransaction, editTransaction, currentMonth } = useTransactions();
+  const [type, setType] = useState<TransactionType>(transactionToEdit?.type || 'expense');
+  const [amount, setAmount] = useState(transactionToEdit?.amount.toString() || '');
+  const [category, setCategory] = useState<Category>(transactionToEdit?.category || 'Food');
   
   const defaultDate = new Date().toISOString().slice(0, 7) === currentMonth 
     ? new Date().toISOString().split('T')[0] 
     : `${currentMonth}-01`;
     
-  const [date, setDate] = useState(expenseToEdit?.date || defaultDate);
-  const [description, setDescription] = useState(expenseToEdit?.description || '');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(expenseToEdit?.paymentMethod || 'Credit Card');
+  const [date, setDate] = useState(transactionToEdit?.date || defaultDate);
+  const [description, setDescription] = useState(transactionToEdit?.description || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(transactionToEdit?.paymentMethod || 'Credit Card');
 
   const [smartInput, setSmartInput] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const applyParsedResult = (result: any) => {
+    if (result.type && ['expense', 'income', 'transfer'].includes(result.type)) setType(result.type as TransactionType);
     if (result.amount) setAmount(result.amount.toString());
     if (result.category && CATEGORIES.includes(result.category as Category)) setCategory(result.category as Category);
     if (result.description) setDescription(result.description);
@@ -40,14 +42,15 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expenseToEdit, onClose
     
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Parse the following expense description into structured data.
+      const prompt = `Parse the following transaction description into structured data.
       
 Description: "${smartInput}"
 
 Current Date (if they say today/yesterday): ${new Date().toISOString().split('T')[0]}
 
 Categories available: ${CATEGORIES.join(', ')}
-Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
+Payment methods available: ${PAYMENT_METHODS.join(', ')}
+Types available: expense, income, transfer`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -57,13 +60,14 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              amount: { type: Type.NUMBER, description: "The amount spent" },
+              type: { type: Type.STRING, description: "The type of transaction: 'expense', 'income', or 'transfer'" },
+              amount: { type: Type.NUMBER, description: "The amount" },
               category: { type: Type.STRING, description: "The best matching category from the available list" },
-              description: { type: Type.STRING, description: "A short description of the expense" },
-              date: { type: Type.STRING, description: "The date of the expense in YYYY-MM-DD format" },
+              description: { type: Type.STRING, description: "A short description of the transaction" },
+              date: { type: Type.STRING, description: "The date of the transaction in YYYY-MM-DD format" },
               paymentMethod: { type: Type.STRING, description: "The best matching payment method from the available list, default to 'Credit Card' if unknown" }
             },
-            required: ["amount", "category", "description", "date", "paymentMethod"]
+            required: ["type", "amount", "category", "description", "date", "paymentMethod"]
           }
         }
       });
@@ -72,7 +76,7 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
       applyParsedResult(result);
       setSmartInput('');
     } catch (error) {
-      console.error("Failed to parse expense:", error);
+      console.error("Failed to parse transaction:", error);
     } finally {
       setIsParsing(false);
     }
@@ -93,12 +97,13 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
 
       const mimeType = file.type;
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Analyze this receipt and extract the expense details into structured data.
+      const prompt = `Analyze this receipt or document and extract the transaction details into structured data.
       
       Current Date (if relative): ${new Date().toISOString().split('T')[0]}
       
       Categories available: ${CATEGORIES.join(', ')}
-      Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
+      Payment methods available: ${PAYMENT_METHODS.join(', ')}
+      Types available: expense, income, transfer`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -113,13 +118,14 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              amount: { type: Type.NUMBER, description: "The total amount spent" },
+              type: { type: Type.STRING, description: "The type of transaction: 'expense', 'income', or 'transfer'" },
+              amount: { type: Type.NUMBER, description: "The total amount" },
               category: { type: Type.STRING, description: "The best matching category from the available list" },
-              description: { type: Type.STRING, description: "A short description of the expense (e.g., store name or items)" },
-              date: { type: Type.STRING, description: "The date of the expense in YYYY-MM-DD format" },
+              description: { type: Type.STRING, description: "A short description (e.g., store name or items)" },
+              date: { type: Type.STRING, description: "The date in YYYY-MM-DD format" },
               paymentMethod: { type: Type.STRING, description: "The best matching payment method from the available list, default to 'Credit Card' if unknown" }
             },
-            required: ["amount", "category", "description", "date", "paymentMethod"]
+            required: ["type", "amount", "category", "description", "date", "paymentMethod"]
           }
         }
       });
@@ -140,7 +146,8 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
     e.preventDefault();
     if (!amount || isNaN(Number(amount))) return;
 
-    const expenseData = {
+    const transactionData = {
+      type,
       amount: Number(amount),
       category,
       date,
@@ -148,10 +155,10 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
       paymentMethod
     };
 
-    if (expenseToEdit) {
-      editExpense(expenseToEdit.id, expenseData);
+    if (transactionToEdit) {
+      editTransaction(transactionToEdit.id, transactionData);
     } else {
-      addExpense(expenseData);
+      addTransaction(transactionData);
     }
 
     if (onClose) {
@@ -165,11 +172,11 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
       <h3 className="text-lg font-semibold mb-4 text-slate-800 flex items-center gap-2">
-        {expenseToEdit ? <Edit2 className="w-5 h-5 text-indigo-500" /> : <PlusCircle className="w-5 h-5 text-emerald-500" />}
-        {expenseToEdit ? 'Edit Expense' : 'Add Expense'}
+        {transactionToEdit ? <Edit2 className="w-5 h-5 text-indigo-500" /> : <PlusCircle className="w-5 h-5 text-emerald-500" />}
+        {transactionToEdit ? 'Edit Transaction' : 'Add Transaction'}
       </h3>
 
-      {!expenseToEdit && (
+      {!transactionToEdit && (
         <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
           <label className="block text-sm font-medium text-indigo-900 mb-2 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-500" />
@@ -222,6 +229,42 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
       )}
 
       <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setType('expense')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
+              type === 'expense' 
+                ? 'bg-rose-50 border-rose-200 text-rose-700' 
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <ArrowDownCircle className="w-4 h-4" /> Expense
+          </button>
+          <button
+            type="button"
+            onClick={() => setType('income')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
+              type === 'income' 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <ArrowUpCircle className="w-4 h-4" /> Income
+          </button>
+          <button
+            type="button"
+            onClick={() => setType('transfer')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
+              type === 'transfer' 
+                ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4" /> Transfer
+          </button>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">Amount (₹)</label>
           <input
@@ -285,7 +328,7 @@ Payment methods available: ${PAYMENT_METHODS.join(', ')}`;
             type="submit"
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors"
           >
-            {expenseToEdit ? 'Save Changes' : 'Add Expense'}
+            {transactionToEdit ? 'Save Changes' : 'Add Transaction'}
           </button>
           {onClose && (
             <button
