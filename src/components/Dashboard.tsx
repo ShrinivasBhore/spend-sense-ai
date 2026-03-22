@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTransactions } from '../context/TransactionContext';
 import { CATEGORIES } from '../types';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import { AlertTriangle, AlertCircle, TrendingUp, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { getDaysInMonth } from 'date-fns';
 import { formatINR } from '../utils/currency';
@@ -13,11 +13,16 @@ const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444'
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-100">
-        <p className="text-sm font-medium text-slate-800 mb-1">{label || payload[0].name}</p>
-        <p className="text-sm font-bold text-indigo-600">
-          {formatINR(payload[0].value)}
-        </p>
+      <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-100 min-w-[150px]">
+        <p className="text-sm font-medium text-slate-800 mb-2">{label ? `Day ${label}` : payload[0].name}</p>
+        <div className="space-y-1">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center justify-between gap-4 text-sm font-bold" style={{ color: entry.color }}>
+              <span>{entry.name}:</span>
+              <span>{formatINR(entry.value)}</span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -54,7 +59,9 @@ export const Dashboard: React.FC = () => {
       day: i + 1,
       date: `${currentMonth}-${String(i + 1).padStart(2, '0')}`,
       expense: 0,
-      income: 0
+      income: 0,
+      netBalance: 0,
+      cumulativeBalance: 0
     }));
 
     currentMonthTransactions.forEach(t => {
@@ -63,6 +70,13 @@ export const Dashboard: React.FC = () => {
         if (t.type === 'expense') days[day - 1].expense += t.amount;
         if (t.type === 'income') days[day - 1].income += t.amount;
       }
+    });
+
+    let cumulative = 0;
+    days.forEach(d => {
+      d.netBalance = d.income - d.expense;
+      cumulative += d.netBalance;
+      d.cumulativeBalance = cumulative;
     });
 
     return days;
@@ -221,6 +235,55 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Cash Flow Analysis Chart */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+        <h3 className="text-lg font-semibold mb-6 text-slate-800">Cash Flow Analysis (Cumulative Net Balance)</h3>
+        {dailyData.some(d => d.expense > 0 || d.income > 0) ? (
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="day" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  tickFormatter={(val) => val % 5 === 0 || val === 1 ? val : ''}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  tickFormatter={(val) => `₹${val}`}
+                  dx={-10}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="cumulativeBalance" 
+                  stroke="#6366f1" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorCumulative)" 
+                  name="Cumulative Cash Flow"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[300px] flex items-center justify-center">
+            <p className="text-slate-400 text-sm">No transactions recorded this month.</p>
+          </div>
+        )}
       </div>
 
       {/* Category Analysis Grid */}
