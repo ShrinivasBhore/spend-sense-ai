@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTransactions } from '../context/TransactionContext';
-import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Transaction, TransactionType } from '../types';
+import { Category, CATEGORIES, PaymentMethod, PAYMENT_METHODS, Transaction, TransactionType, RecurrenceFrequency } from '../types';
 import { PlusCircle, Edit2, Sparkles, Loader2, ArrowRight, Camera, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -10,7 +10,7 @@ interface TransactionFormProps {
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ transactionToEdit, onClose }) => {
-  const { addTransaction, editTransaction, currentMonth } = useTransactions();
+  const { addTransaction, editTransaction, currentMonth, accounts, addRecurringTransaction } = useTransactions();
   const [type, setType] = useState<TransactionType>(transactionToEdit?.type || 'expense');
   const [amount, setAmount] = useState(transactionToEdit?.amount.toString() || '');
   const [category, setCategory] = useState<Category>(transactionToEdit?.category || 'Food');
@@ -23,9 +23,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ transactionToE
   const [description, setDescription] = useState(transactionToEdit?.description || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(transactionToEdit?.paymentMethod || 'Credit Card');
 
+  const defaultAccount = accounts.length > 0 ? accounts[0].id : '';
+  const [accountId, setAccountId] = useState(transactionToEdit?.accountId || defaultAccount);
+  const [toAccountId, setToAccountId] = useState(transactionToEdit?.toAccountId || '');
+
   const [smartInput, setSmartInput] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
+
+  // Ensure accountId is set if accounts load later
+  useEffect(() => {
+    if (!accountId && accounts.length > 0) {
+      setAccountId(accounts[0].id);
+    }
+  }, [accounts, accountId]);
 
   const applyParsedResult = (result: any) => {
     if (result.type && ['expense', 'income', 'transfer'].includes(result.type)) setType(result.type as TransactionType);
@@ -145,6 +159,18 @@ Types available: expense, income, transfer`;
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || isNaN(Number(amount))) return;
+    if (!accountId) {
+      alert("Please select an account.");
+      return;
+    }
+    if (type === 'transfer' && !toAccountId) {
+      alert("Please select a destination account for the transfer.");
+      return;
+    }
+    if (type === 'transfer' && accountId === toAccountId) {
+      alert("Source and destination accounts cannot be the same.");
+      return;
+    }
 
     const transactionData = {
       type,
@@ -152,13 +178,31 @@ Types available: expense, income, transfer`;
       category,
       date,
       description,
-      paymentMethod
+      paymentMethod,
+      accountId,
+      toAccountId: type === 'transfer' ? toAccountId : undefined
     };
 
     if (transactionToEdit) {
       editTransaction(transactionToEdit.id, transactionData);
     } else {
-      addTransaction(transactionData);
+      if (isRecurring) {
+        addRecurringTransaction({
+          type,
+          amount: Number(amount),
+          category,
+          description,
+          paymentMethod,
+          accountId,
+          toAccountId: type === 'transfer' ? toAccountId : undefined,
+          frequency,
+          startDate: date,
+          nextDate: date,
+          active: true
+        });
+      } else {
+        addTransaction(transactionData);
+      }
     }
 
     if (onClose) {
@@ -277,6 +321,40 @@ Types available: expense, income, transfer`;
             placeholder="0.00"
           />
         </div>
+
+        <div className={`grid ${type === 'transfer' ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              {type === 'transfer' ? 'From Account' : 'Account'}
+            </label>
+            <select
+              value={accountId}
+              onChange={e => setAccountId(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white"
+            >
+              <option value="" disabled>Select Account</option>
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+              ))}
+            </select>
+          </div>
+          {type === 'transfer' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">To Account</label>
+              <select
+                value={toAccountId}
+                onChange={e => setToAccountId(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white"
+              >
+                <option value="" disabled>Select Destination</option>
+                {accounts.map(a => (
+                  <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
@@ -323,6 +401,36 @@ Types available: expense, income, transfer`;
             placeholder="What was this for?"
           />
         </div>
+
+        {!transactionToEdit && (
+          <div className="flex flex-col gap-3 mt-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={e => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+              />
+              Make this a recurring transaction
+            </label>
+            {isRecurring && (
+              <div className="pl-6">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                <select
+                  value={frequency}
+                  onChange={e => setFrequency(e.target.value as RecurrenceFrequency)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 pt-2">
           <button
             type="submit"

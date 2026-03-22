@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useTransactions } from '../context/TransactionContext';
 import { TransactionForm } from './TransactionForm';
-import { Trash2, Edit, Calendar, Tag, DollarSign, Search, CreditCard, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
+import { Trash2, Edit, Calendar, Tag, DollarSign, Search, CreditCard, ArrowDownCircle, ArrowUpCircle, RefreshCw, Wallet } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Category, CATEGORIES } from '../types';
 import { formatINR } from '../utils/currency';
 
 export const TransactionList: React.FC = () => {
-  const { currentMonthTransactions, deleteTransaction } = useTransactions();
+  const { currentMonthTransactions, deleteTransaction, accounts } = useTransactions();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<Category | 'All'>('All');
@@ -88,6 +88,12 @@ export const TransactionList: React.FC = () => {
     }
   };
 
+  const getAccountName = (id?: string) => {
+    if (!id) return 'Unknown Account';
+    const account = accounts.find(a => a.id === id);
+    return account ? account.name : 'Unknown Account';
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="p-6 border-b border-slate-100 space-y-4">
@@ -141,7 +147,12 @@ export const TransactionList: React.FC = () => {
                       <p className="font-medium text-slate-800">{transaction.description || transaction.category}</p>
                       <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
                         <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" />{transaction.category}</span>
-                        <span className="flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />{transaction.paymentMethod}</span>
+                        <span className="flex items-center gap-1" title="Account">
+                          <Wallet className="w-3.5 h-3.5" />
+                          {transaction.type === 'transfer' 
+                            ? `${getAccountName(transaction.accountId)} → ${getAccountName(transaction.toAccountId)}`
+                            : getAccountName(transaction.accountId)}
+                        </span>
                         <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{format(parseISO(transaction.date), 'MMM d, yyyy')}</span>
                       </div>
                     </div>

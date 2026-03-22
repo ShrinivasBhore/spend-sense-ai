@@ -8,6 +8,8 @@ import { BudgetAlerts } from './components/BudgetAlerts';
 import { AIInsights } from './components/AIInsights';
 import { DataActions } from './components/DataActions';
 import { MonthSelector } from './components/MonthSelector';
+import { AccountsOverview } from './components/AccountsOverview';
+import { RecurringTransactionsList } from './components/RecurringTransactionsList';
 import { Wallet } from 'lucide-react';
 
 export default function App() {
@@ -20,7 +22,7 @@ export default function App() {
               <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
                 <Wallet className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight hidden md:block">Smart Expense Tracker</h1>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight hidden md:block">Smart Finance Tracker</h1>
             </div>
             
             <div className="flex items-center gap-2 sm:gap-4">
@@ -31,6 +33,7 @@ export default function App() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <AccountsOverview />
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-4 space-y-6">
               <TransactionForm />
@@ -41,6 +44,7 @@ export default function App() {
               <BudgetAlerts />
               <Dashboard />
               <AIInsights />
+              <RecurringTransactionsList />
               <TransactionList />
             </div>
           </div>
